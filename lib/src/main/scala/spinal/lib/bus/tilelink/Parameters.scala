@@ -43,7 +43,12 @@ case class BusParameter(addressWidth : Int,
   def sizeValues  = sizeMin to sizeMax
   val sizeWidth   = log2Up(sizeMax+1)
   val beatMax     = (sizeBytes+dataBytes-1)/dataBytes
-  val beatWidth   = log2Up(beatMax)
+  // Floor beatWidth to 1: a single-beat bus (beatMax == 1, e.g. 512-bit data with a
+  // 64-byte line) still needs a 1-bit beat/last field to hold the constant index 0.
+  // log2Up(beatMax) == 0 otherwise makes Reg(beat()) 0-bit and the beat counters'
+  // (counter+1)/sizeToBeatMinusOne comparisons overflow to 1 bit -> WIDTH MISMATCH.
+  // Multi-beat buses (beatMax >= 2) are unchanged.
+  val beatWidth   = scala.math.max(1, log2Up(beatMax))
   val dataBytesLog2Up = log2Up(dataBytes)
 
   val address     = HardType(UInt(addressWidth bits))

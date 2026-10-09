@@ -1748,7 +1748,10 @@ class Cache(val p : CacheParam) extends Component {
         val last = Bool()
       }
       val toCache = forkStream(enabled = !isVictim && CTX.toCache).swapPayload(ToCache())
-      toCache.cmd.address := CTX.wayId @@ CTX.setId @@ BEAT
+      // The data-RAM word-offset field is wordRange bits (log2Up(wordsPerLine)); BEAT is
+      // floored to >=1 bit for the control beat counter, so present it at wordRange width.
+      // For a single-beat line (wordRange empty) this drops the redundant bit -> wayId@@setId.
+      toCache.cmd.address := CTX.wayId @@ CTX.setId @@ BEAT.resize(wordRange.size)
       toCache.cmd.data := CMD.data
       toCache.cmd.mask.setAll()
       toCache.gsId := CMD.source.resized
@@ -1757,7 +1760,7 @@ class Cache(val p : CacheParam) extends Component {
       val gsId = CMD.source.resize(log2Up(gs.slots.size))
       val vh = readBackend.fetchStage
       val victimRead = gs.slots.reader(gsId)(_.pending.victimWrite) //Here we pick victim write to be sure we don't create a dead lock
-      val victimOnGoing = vh.up.valid && vh(readBackend.CMD).toVictim && readBackend.victimAddress(vh) === (gsId @@ BEAT)
+      val victimOnGoing = vh.up.valid && vh(readBackend.CMD).toVictim && readBackend.victimAddress(vh) === (gsId @@ BEAT.resize(wordRange.size))
       val victimHazard = victimRead || victimOnGoing
 
       val toCacheBuffered = toCache.haltWhen(victimHazard).stage()
